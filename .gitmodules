@@ -1,0 +1,3 @@
+[submodule "immich"]
+	path = immich
+	url = https://github.com/Tugado/immich-api
