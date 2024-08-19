@@ -33,3 +33,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: New_NameConfigEntry) -> 
 async def async_unload_entry(hass: HomeAssistant, entry: New_NameConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the an async service example component."""
+    @callback
+    def refresh(call: ServiceCall) -> None:
+        """My first service."""
+        _LOGGER.info('Received data', call.data)
+
+    # Register our service with Home Assistant.
+    hass.services.async_register(DOMAIN, 'refresh', refresh)
+
+    # Return boolean to indicate that initialization was successfully.
+    return True
+def setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the sync service example component."""
+    def pause_job(call: ServiceCall) -> None:
+        """My first service."""
+        _LOGGER.info('Received data', call.data)
+
+    # Register our service with Home Assistant.
+    hass.services.register(DOMAIN, 'pause_job', pause_job)
+
+    # Return boolean to indicate that initialization was successfully.
+    return True
