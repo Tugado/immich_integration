@@ -6,7 +6,8 @@
             "host": "URL Immich",
             "username": "User Immich",
             "password": "Token Immich"
-          }
+          },
+        "description": "Immich Api Data"
         }
       },
       "error": {
