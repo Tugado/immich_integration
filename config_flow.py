@@ -26,7 +26,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class PlaceholderHub:
+class ImmichIntegrationConfig:
     """Placeholder class to make tests pass.
 
     TODO Remove this placeholder class and replace with things from your PyPI package.
@@ -54,7 +54,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     #     your_validate_func, data[CONF_USERNAME], data[CONF_PASSWORD]
     # )
 
-    hub = PlaceholderHub(data[CONF_HOST])
+    hub = ImmichIntegrationConfig(data[CONF_HOST])
 
     if not await hub.authenticate(data[CONF_USERNAME], data[CONF_PASSWORD]):
         raise InvalidAuth
@@ -68,11 +68,11 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     return {"title": "Name of the device"}
 
 
-class ConfigFlow(ConfigFlow, domain=DOMAIN):
+class ImmichConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Immich Integration."""
 
     VERSION = 1
-
+    MINOR_VERSION = 1
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
