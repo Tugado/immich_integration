@@ -10,7 +10,14 @@ import asyncio
 import random
 
 from homeassistant.core import HomeAssistant
+from .immich_client import AuthenticatedClient
+from .immich_client.models import all_job_status_response_dto,JobCommandDto,AllJobStatusResponseDto,JobStatusDto
+from .immich_client.models.job_command import JobCommand
+from .immich_client.models.job_name import JobName
 
+from .immich_client.types import Response
+
+from .immich_client.api.jobs import get_all_jobs_status, send_job_command
 
 class Hub:
     """Dummy hub for Hello World example."""
@@ -23,6 +30,7 @@ class Hub:
         self._hass = hass
         self._name = host
         self._id = host.lower()
+        self.jobs = JobName
         self.rollers = [
             Roller(f"{self._id}_1", f"{self._name} 1", self),
             Roller(f"{self._id}_2", f"{self._name} 2", self),
@@ -39,7 +47,26 @@ class Hub:
         """Test connectivity to the Dummy hub is OK."""
         await asyncio.sleep(1)
         return True
-
+class Job:
+    def __init__(self,job_name: str) -> None:
+        self._job_name = job_name
+        self.firmware_version = f"0.0.1"
+        self.model = "Immich Integration"
+#        self._job_counts = job_status.job_counts
+#       self._queue_paused= job_status.queue_status.is_paused
+#       self._queue_active= job_status.queue_status.is_active
+    @property
+    def job_counts(self):
+        """Return position for roller."""
+        return self._job_counts
+    @property
+    def paused(self):
+        """Return position for roller."""
+        return self._queue_paused
+    @property
+    def active(self):
+        """Return position for roller."""
+        return self._queue_active
 
 class Roller:
     """Dummy roller (device for HA) for Hello World example."""

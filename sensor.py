@@ -35,10 +35,45 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     for roller in hub.rollers:
         new_devices.append(BatterySensor(roller))
         new_devices.append(IlluminanceSensor(roller))
+    for job in hub.jobs:
+        new_devices.append(JobSensor(job))
     if new_devices:
         async_add_entities(new_devices)
+        
 
+class JobSensor(Entity):
+    should_poll = False
+    def __init__(self, job):
+      """Initialize the sensor."""
+      self._job = job
+      self._attr_unique_id = f"{self._job.roller_id}"
 
+      # The name of the entity
+      self._attr_name = f"{self._job.name}"
+
+      self._state = self._job.job_counts
+
+    @property
+    def device_info(self):
+        """Return information to link this entity with the correct device."""
+        return {"identifiers": {(DOMAIN, self._job.job_name)}}
+    @property
+    def available(self) -> bool:
+        """Return True if roller and hub is available."""
+        return self._job.online and self._job.hub.online
+    async def async_added_to_hass(self):
+        """Run when this Entity has been added to HA."""
+        # Sensors should also register callbacks to HA when their state changes
+        self._job.register_callback(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self):
+        """Entity being removed from hass."""
+        # The opposite of async_added_to_hass. Remove any registered call backs here.
+        self._job.remove_callback(self.async_write_ha_state)    
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._job.job_counts
 # This base class shows the common properties and methods for a sensor as used in this
 # example. See each sensor for further details about properties and methods that
 # have been overridden.
@@ -50,6 +85,7 @@ class SensorBase(Entity):
     def __init__(self, roller):
         """Initialize the sensor."""
         self._roller = roller
+        
 
     # To link this entity to the cover device, this property must return an
     # identifiers value matching that used in the cover, but no other information such
