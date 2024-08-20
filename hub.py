@@ -67,7 +67,10 @@ class Job:
     def active(self):
         """Return position for roller."""
         return self._queue_active
-
+    @property
+    def job_name(self) -> str:
+        """Return ID for roller."""
+        return self._job_name
 class Roller:
     """Dummy roller (device for HA) for Hello World example."""
 
