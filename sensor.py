@@ -51,7 +51,7 @@ class JobSensor(Entity):
       # The name of the entity
       self._attr_name = f"{self._job.name}"
 
-      self._state = self._job.job_counts
+      #self._state = 0
 
     @property
     def device_info(self):
