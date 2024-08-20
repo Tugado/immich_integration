@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import _LOGGER, HomeAssistant,callback,ServiceCall
 from homeassistant.helpers.typing import ConfigType
+import hub
 from .immich_client import AuthenticatedClient
 from .const import DOMAIN
 # TODO List the platforms that you want to support.
@@ -25,9 +26,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # TODO 3. Store an API object for your platforms to access
     # entry.runtime_data = MyAPI(...)
     token="xW65lDDPLbCgZBCqlJIBhXcVU8wKOBj3HQhJH87k"
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = hub.Hub(hass, entry.data["host"])
 
     entry.runtime_data =  AuthenticatedClient(base_url="http://immich.lumiere/api", token=token, headers={"Content-Type": "application/json",'Accept': 'application/json',"Cookie":"immich_access_token={}".format(token)})
-    entry.domain = DOMAIN
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
