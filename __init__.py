@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import _LOGGER, HomeAssistant,callback,ServiceCall
 from homeassistant.helpers.typing import ConfigType
-from immich_client import AuthenticatedClient
+from .immich_client import AuthenticatedClient
 from .const import DOMAIN
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
