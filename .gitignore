@@ -1,2 +1,4 @@
 init_repo.sh
 homeassistant
+test.py
+__pycache__/
