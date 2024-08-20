@@ -10,6 +10,7 @@ import asyncio
 import random
 
 from homeassistant.core import HomeAssistant
+from .sensor import JobSensor
 from .immich_client import AuthenticatedClient
 from .immich_client.models import all_job_status_response_dto,JobCommandDto,AllJobStatusResponseDto,JobStatusDto
 from .immich_client.models.job_command import JobCommand
@@ -30,7 +31,9 @@ class Hub:
         self._hass = hass
         self._name = host
         self._id = host.lower()
-        self.jobs = JobName
+        self.jobs = []
+        for job in JobName:
+            self.jobs.append(JobSensor(job))
         self.rollers = [
             Roller(f"{self._id}_1", f"{self._name} 1", self),
         ]
