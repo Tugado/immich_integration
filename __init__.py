@@ -26,7 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # entry.runtime_data = MyAPI(...)
     token="xW65lDDPLbCgZBCqlJIBhXcVU8wKOBj3HQhJH87k"
 
-    entry.runtime_data =  AuthenticatedClient(base_url="http://immich.lumiere/api", token=token, headers={"Content-Type": "application/json",'Accept': 'application/json',"Cookie":"immich_access_token={}".format(token)},httpx_args={"event_hooks": {"request": [log_request], "response": [log_response]}},)
+    entry.runtime_data =  AuthenticatedClient(base_url="http://immich.lumiere/api", token=token, headers={"Content-Type": "application/json",'Accept': 'application/json',"Cookie":"immich_access_token={}".format(token)})
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
