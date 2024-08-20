@@ -56,6 +56,7 @@ def setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     # Register our service with Home Assistant.
     hass.services.register(DOMAIN, 'pause_job', pause_job)
+    hass.config_entries.async_forward_entry_setup(config,PLATFORMS)
 
 
     # Return boolean to indicate that initialization was successfully.
