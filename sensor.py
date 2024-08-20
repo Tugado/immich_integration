@@ -46,7 +46,7 @@ class JobSensor(Entity):
     def __init__(self, job):
       """Initialize the sensor."""
       self._job = job
-      self._attr_unique_id = f"{self._job.roller_id}"
+      self._attr_unique_id = f"{self._job.name}"
 
       # The name of the entity
       self._attr_name = f"{self._job.name}"
