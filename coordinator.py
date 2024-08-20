@@ -3,18 +3,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
+from homeassistant.components.sensor import SCAN_INTERVAL
+from homeassistant.const import CONF_API_KEY, CONF_PORT, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import (
-    CONF_API_KEY,
-    CONF_PORT,
-    CONF_URL,
-    CONF_VERIFY_SSL,
     DOMAIN,
-    SCAN_INTERVAL,
 )
-from .helpers import extract_base_url_and_path
 
 _LOGGER = logging.getLogger(__name__)
 
