@@ -47,7 +47,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     # Register our service with Home Assistant.
     hass.services.async_register(DOMAIN, 'refresh', refresh)
-    await hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
+    hass.config_entries.async_forward_entry_setups(config, PLATFORMS)
 
     # Return boolean to indicate that initialization was successfully.
     return True
