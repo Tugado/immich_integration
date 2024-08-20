@@ -33,8 +33,6 @@ class Hub:
         self.jobs = JobName
         self.rollers = [
             Roller(f"{self._id}_1", f"{self._name} 1", self),
-            Roller(f"{self._id}_2", f"{self._name} 2", self),
-            Roller(f"{self._id}_3", f"{self._name} 3", self),
         ]
         self.online = True
 
