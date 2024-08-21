@@ -12,13 +12,17 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_VOLTAGE,
     PERCENTAGE,
     LIGHT_LUX,
     ATTR_UNIT_OF_MEASUREMENT,
+    Platform,
 )
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 
@@ -27,18 +31,57 @@ from .const import DOMAIN
 # Note how both entities for each roller sensor (battry and illuminance) are added at
 # the same time to the same list. This way only a single async_add_devices call is
 # required.
-async def async_setup_entry(hass, config_entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Add sensors for passed config_entry in HA."""
-    hub = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    @callback
+    def discover(devices):
+        """Add new devices to platform."""
+        _setup_entities(devices, async_add_entities, coordinator)
 
-    new_devices = []
-    for roller in hub.rollers:
-        new_devices.append(BatterySensor(roller))
-        new_devices.append(IlluminanceSensor(roller))
-    for job in hub.jobs:
-        new_devices.append(job)
-    if new_devices:
-        async_add_entities(new_devices)
+    _setup_entities(
+        hass.data[DOMAIN][config_entry.entry_id][Platform.SENSOR],
+        async_add_entities,
+        coordinator,
+    )
+@callback
+def _setup_entities(devices, async_add_entities, coordinator):
+    """Check if device is online and add entity."""
+    entities = []
+    for dev in devices:
+        if hasattr(dev, "fryer_status"):
+            for stype in SENSOR_TYPES_AIRFRYER.values():
+                entities.append(
+                    VeSyncairfryerSensor(
+                        dev,
+                        coordinator,
+                        stype,
+                    )
+                )
+
+        if DEV_TYPE_TO_HA.get(dev.device_type) == "outlet":
+            entities.extend(
+                (
+                    VeSyncPowerSensor(dev, coordinator),
+                    VeSyncEnergySensor(dev, coordinator),
+                )
+            )
+        if has_feature(dev, "details", "humidity"):
+            entities.append(VeSyncHumiditySensor(dev, coordinator))
+        if has_feature(dev, "details", "air_quality"):
+            entities.append(VeSyncAirQualitySensor(dev, coordinator))
+        if has_feature(dev, "details", "air_quality_value"):
+            entities.append(VeSyncAirQualityValueSensor(dev, coordinator))
+        if has_feature(dev, "details", "filter_life"):
+            entities.append(VeSyncFilterLifeSensor(dev, coordinator))
+
+    async_add_entities(entities, update_before_add=True)
+
+
         
 
 class JobSensor(Entity):
