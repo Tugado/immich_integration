@@ -1,23 +1,21 @@
 {
-    "config": {
-      "step": {
-        "user": {
-          "data": {
-            "host": "URL Immich",
-            "username": "User Immich",
-            "password": "Token Immich"
-          },
-        "description": "Immich Api Data"
-        }
+  "config": {
+      "abort": {
+          "already_configured": "Ya está configurado"
       },
       "error": {
-        "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-        "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-        "unknown": "[%key:common::config_flow::error::unknown%]"
+          "cannot_connect": "Error al conectar",
+          "invalid_auth": "API incorrecta",
+          "unknown": "Unexpected error"
       },
-      "abort": {
-        "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "step": {
+          "user": {
+              "data": {
+                  "api_key": "API key",
+                  "host": "Host"
+              }
+          }
       }
-    }
   }
-  
+
+}
