@@ -6,9 +6,11 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from urllib.parse import urlparse
+from url_normalize import url_normalize
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_HOST, CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.core import callback
@@ -21,8 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_API_KEY): str,
     }
 )
 
@@ -47,26 +48,24 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    # TODO validate the data can be used to set up a connection.
 
-    # If your PyPI package is not built with async, pass your methods
-    # to the executor:
-    # await hass.async_add_executor_job(
-    #     your_validate_func, data[CONF_USERNAME], data[CONF_PASSWORD]
-    # )
+    url = url_normalize(data[CONF_HOST])
+    api_key = data[CONF_API_KEY]
 
-    hub = ImmichIntegrationConfig(data[CONF_HOST])
+    hub = ImmichHub(host=url, api_key=api_key)
 
-    if not await hub.authenticate(data[CONF_USERNAME], data[CONF_PASSWORD]):
+    if not await hub.authenticate():
         raise InvalidAuth
 
-    # If you cannot connect:
-    # throw CannotConnect
-    # If the authentication is wrong:
-    # InvalidAuth
+    user_info = await hub.get_my_user_info()
+    username = user_info["name"]
+    clean_hostname = urlparse(url).hostname
 
     # Return info that you want to store in the config entry.
-    return {"title": "Immich Integration"}
+    return {
+        "title": f"{username} @ {clean_hostname}",
+        "data": {CONF_HOST: url, CONF_API_KEY: api_key},
+    }
 
 
 class ImmichConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -74,6 +73,7 @@ class ImmichConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     MINOR_VERSION = 1
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
