@@ -1,216 +1,86 @@
 """Platform for sensor integration."""
-# This file shows the setup for the sensors associated with the cover.
-# They are setup in the same way with the call to the async_setup_entry function
-# via HA from the module __init__. Each sensor has a device_class, this tells HA how
-# to display it in the UI (for know types). The unit_of_measurement property tells HA
-# what the unit is, so it can display the correct range. For predefined types (such as
-# battery), the unit_of_measurement should match what's expected.
-import random
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
+from __future__ import annotations
+
+from datetime import timedelta
+import logging
+
+from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_VOLTAGE,
-    PERCENTAGE,
-    LIGHT_LUX,
-    ATTR_UNIT_OF_MEASUREMENT,
-    Platform,
-)
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import Entity
+from homeassistant.const import CONF_API_KEY, CONF_HOST
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .hub import ImmichHub
+
+SCAN_INTERVAL = timedelta(minutes=5)
+_ID_LIST_REFRESH_INTERVAL = timedelta(hours=12)
+_LOGGER = logging.getLogger(__name__)
 
 
-# See cover.py for more details.
-# Note how both entities for each roller sensor (battry and illuminance) are added at
-# the same time to the same list. This way only a single async_add_devices call is
-# required.
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Add sensors for passed config_entry in HA."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    @callback
-    def discover(devices):
-        """Add new devices to platform."""
-        _setup_entities(devices, async_add_entities, coordinator)
+    """Set up Immich Sensor platform."""
 
-    _setup_entities(
-        hass.data[DOMAIN][config_entry.entry_id][Platform.SENSOR],
-        async_add_entities,
-        coordinator,
+    hub = ImmichHub(
+        host=config_entry.data[CONF_HOST], api_key=config_entry.data[CONF_API_KEY]
     )
-@callback
-def _setup_entities(devices, async_add_entities, coordinator):
-    """Check if device is online and add entity."""
-    entities = []
-    for dev in devices:
-        if hasattr(dev, "fryer_status"):
-            for stype in SENSOR_TYPES_AIRFRYER.values():
-                entities.append(
-                    VeSyncairfryerSensor(
-                        dev,
-                        coordinator,
-                        stype,
-                    )
-                )
 
-        if DEV_TYPE_TO_HA.get(dev.device_type) == "outlet":
-            entities.extend(
-                (
-                    VeSyncPowerSensor(dev, coordinator),
-                    VeSyncEnergySensor(dev, coordinator),
-                )
-            )
-        if has_feature(dev, "details", "humidity"):
-            entities.append(VeSyncHumiditySensor(dev, coordinator))
-        if has_feature(dev, "details", "air_quality"):
-            entities.append(VeSyncAirQualitySensor(dev, coordinator))
-        if has_feature(dev, "details", "air_quality_value"):
-            entities.append(VeSyncAirQualityValueSensor(dev, coordinator))
-        if has_feature(dev, "details", "filter_life"):
-            entities.append(VeSyncFilterLifeSensor(dev, coordinator))
+    # Create entity for random favorite image
+    # async_add_entities([ImmichJobs(hass, hub)])
 
-    async_add_entities(entities, update_before_add=True)
+    # Create entities for random image from each watched album
+    async_add_entities(
+        [
+            ImmichJob(hass, hub, job_id=value, job_name=key)
+            for key, value in await hub.list_all_albums()
+        ]
+    )
+
+    config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
 
 
-        
-
-class JobSensor(Entity):
-    should_poll = False
-    def __init__(self, job):
-      """Initialize the sensor."""
-      self._job = job
-      self._attr_unique_id = f"{self._job.name}"
-
-      # The name of the entity
-      self._attr_name = f"{self._job.name}"
-
-      #self._state = 0
-
-    @property
-    def device_info(self):
-        """Return information to link this entity with the correct device."""
-        return {"identifiers": {(DOMAIN, self._job.job_name)}}
-    @property
-    def available(self) -> bool:
-        """Return True if roller and hub is available."""
-        return self._job.online and self._job.hub.online
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        # Sensors should also register callbacks to HA when their state changes
-        self._job.register_callback(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self):
-        """Entity being removed from hass."""
-        # The opposite of async_added_to_hass. Remove any registered call backs here.
-        self._job.remove_callback(self.async_write_ha_state)    
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._job.job_counts
-# This base class shows the common properties and methods for a sensor as used in this
-# example. See each sensor for further details about properties and methods that
-# have been overridden.
-class SensorBase(Entity):
-    """Base representation of a Hello World Sensor."""
-
-    should_poll = False
-
-    def __init__(self, roller):
-        """Initialize the sensor."""
-        self._roller = roller
-        
-
-    # To link this entity to the cover device, this property must return an
-    # identifiers value matching that used in the cover, but no other information such
-    # as name. If name is returned, this entity will then also become a device in the
-    # HA UI.
-    @property
-    def device_info(self):
-        """Return information to link this entity with the correct device."""
-        return {"identifiers": {(DOMAIN, self._roller.roller_id)}}
-
-    # This property is important to let HA know if this entity is online or not.
-    # If an entity is offline (return False), the UI will refelect this.
-    @property
-    def available(self) -> bool:
-        """Return True if roller and hub is available."""
-        return self._roller.online and self._roller.hub.online
-
-    async def async_added_to_hass(self):
-        """Run when this Entity has been added to HA."""
-        # Sensors should also register callbacks to HA when their state changes
-        self._roller.register_callback(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self):
-        """Entity being removed from hass."""
-        # The opposite of async_added_to_hass. Remove any registered call backs here.
-        self._roller.remove_callback(self.async_write_ha_state)
+async def update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    """Handle options updates."""
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 
-class BatterySensor(SensorBase):
-    """Representation of a Sensor."""
+class BaseImmichJob(ImageEntity):
+    """Base image entity for Immich. Subclasses will define where the random image comes from (e.g. favorite images, by album ID,..)."""
 
-    # The class of this device. Note the value should come from the homeassistant.const
-    # module. More information on the available devices classes can be seen here:
-    # https://developers.home-assistant.io/docs/core/entity/sensor
-    device_class = SensorDeviceClass.BATTERY
+    _attr_has_entity_name = True
+    _attr_should_poll = True
 
-    # The unit of measurement for this entity. As it's a DEVICE_CLASS_BATTERY, this
-    # should be PERCENTAGE. A number of units are supported by HA, for some
-    # examples, see:
-    # https://developers.home-assistant.io/docs/core/entity/sensor#available-device-classes
-    _attr_unit_of_measurement = PERCENTAGE
+    def __init__(self, hass: HomeAssistant, hub: ImmichHub) -> None:
+        """Initialize the Immich image entity."""
+        super().__init__(hass=hass, verify_ssl=True)
+        self.hub = hub
+        self.hass = hass
 
-    def __init__(self, roller):
-        """Initialize the sensor."""
-        super().__init__(roller)
+        self._attr_extra_state_attributes = {}
 
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
-        self._attr_unique_id = f"{self._roller.roller_id}_battery"
-
-        # The name of the entity
-        self._attr_name = f"{self._roller.name} Battery"
-
-        self._state = random.randint(0, 100)
-
-    # The value of this sensor. As this is a DEVICE_CLASS_BATTERY, this value must be
-    # the battery level as a percentage (between 0 and 100)
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        return self._roller.battery_level
+    async def async_update(self) -> None:
+        raise NotImplementedError
 
 
-# This is another sensor, but more simple compared to the battery above. See the
-# comments above for how each field works.
-class IlluminanceSensor(SensorBase):
-    """Representation of a Sensor."""
+class ImmichJob(BaseImmichJob):
+    """Image entity for Immich that displays a random image from the user's favorites."""
 
-    device_class = SensorDeviceClass.ILLUMINANCE
-    _attr_unit_of_measurement = LIGHT_LUX
-
-    def __init__(self, roller):
-        """Initialize the sensor."""
-        super().__init__(roller)
-        # As per the sensor, this must be a unique value within this domain. This is done
-        # by using the device ID, and appending "_battery"
-        self._attr_unique_id = f"{self._roller.roller_id}_illuminance"
-
-        # The name of the entity
-        self._attr_name = f"{self._roller.name} Illuminance"
+    def __init__(
+        self, hass: HomeAssistant, hub: ImmichHub, job: dict, job_name: str
+    ) -> None:
+        super().__init__(hass, hub)
+        self._job_name = job_name
+        self._attr_unique_id = job_name
+        self._attr_name = f"Immich Job: {job_name}"
+        self._queue_active = job["queueStatus"].isActive
+        self._queue_paused = job["queueStatus"].isPaused
+        self._active = job["jobCounts"].active
 
     @property
     def state(self):
         """Return the state of the sensor."""
-        return self._roller.illuminance
+        return self._active
