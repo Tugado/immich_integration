@@ -36,7 +36,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             ImmichJob(hass, hub, job_id=value, job_name=key)
-            for key, value in await hub.list_all_albums()
+            for key, value in await hub.list_jobs()
         ]
     )
 
