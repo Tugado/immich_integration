@@ -68,7 +68,7 @@ class ImmichHub:
             _LOGGER.error("Error connecting to the API: %s", exception)
             raise CannotConnect from exception
 
-    async def list_jobs(self) -> list[dict]:
+    async def list_jobs(self) -> dict:
         """List Jobs."""
         try:
             async with aiohttp.ClientSession() as session:
@@ -82,7 +82,7 @@ class ImmichHub:
                         _LOGGER.error("Error from API: body=%s", raw_result)
                         raise ApiError()
 
-                    jobs: list[dict] = await response.json()
+                    jobs: dict = await response.json()
 
                     return jobs
         except aiohttp.ClientError as exception:
