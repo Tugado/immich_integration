@@ -16,6 +16,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.core import callback
 
 from .const import DOMAIN
+from .hub import ImmichHub
 
 _LOGGER = logging.getLogger(__name__)
 
