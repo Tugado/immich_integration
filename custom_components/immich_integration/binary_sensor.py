@@ -31,14 +31,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up Immich Sensor platform."""
 
-    hub = ImmichHub(
-        host=config_entry.data[CONF_HOST], api_key=config_entry.data[CONF_API_KEY]
-    )
+    hub = hass.data[DOMAIN][config_entry.entry_id]
 
     # Create entity for random favorite image
     # async_add_entities([ImmichJobs(hass, hub)])
 
-    # Create entities for random image from each watched album
+    # Create entities for random image from each watched
     jobs = await hub.get_jobs(False)
     async_add_entities(
         [ImmichJob(hass, hub, job=jobs[key], job_name=key) for key in jobs]

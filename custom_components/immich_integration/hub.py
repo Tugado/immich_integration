@@ -93,10 +93,34 @@ class ImmichHub:
             _LOGGER.error("Error connecting to the API: %s", exception)
             raise CannotConnect from exception
 
+    async def job_command(self, command: str, job_id: str) -> bool:
+        """Pause Job"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = urljoin(self.host, f"/api/jobs/{job_id}")
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    _HEADER_API_KEY: self.api_key,
+                }
+                data = {"command": "pause", "force": True}
+
+                async with session.put(url=url, headers=headers, data=data) as response:
+                    return response.status == 200
+        except aiohttp.ClientError as exception:
+            _LOGGER.error("Error connecting to the API: %s", exception)
+            raise CannotConnect from exception
+
     async def get_jobs(self, cache: bool) -> dict:
         if not self.jobs or not cache:
             await self.refresh_jobs()
         return self.jobs
+
+    async def pause(self, job_id: str) -> bool:
+        return self.job_command("pause", job_id)
+
+    async def start(self, job_id: str) -> bool:
+        return self.job_command("start", job_id)
 
 
 class CannotConnect(HomeAssistantError):
