@@ -32,8 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ImmichConfigEntry) -> bo
         entry.data[CONF_API_KEY],
         entry.data[CONF_HOST],
         entry.data[CONF_PORT],
-        entry.data[CONF_SSL],
-        "home-assistant",
+        entry.data[CONF_SSL]
     )
 
     try:
