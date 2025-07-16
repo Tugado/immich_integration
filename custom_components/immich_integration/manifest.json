@@ -2,15 +2,17 @@
   "domain": "immich_integration",
   "name": "Immich Integration",
   "codeowners": [
-    "@Tugado"
+    "@mib1185","@Tugado"
   ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Tugado/immich_integration",
   "homekit": {},
-  "iot_class": "cloud_polling",
-  "requirements": ["url-normalize==1.4.3"],
   "ssdp": [],
   "zeroconf": [],
-  "version": "0.0.2"
+  "version": "0.0.2",
+  "iot_class": "local_polling",
+  "loggers": ["aioimmich"],
+  "quality_scale": "silver",
+  "requirements": ["aioimmich==0.10.2"]
 }
