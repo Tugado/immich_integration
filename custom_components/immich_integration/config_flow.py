@@ -1,79 +1,86 @@
-"""Config flow for Immich Integration integration."""
+"""Config flow for the Immich integration."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from typing import Any
 
+from aioimmich import Immich
+from aioimmich.const import CONNECT_ERRORS
+from aioimmich.exceptions import ImmichUnauthorizedError
+from aioimmich.users.models import ImmichUser
 import voluptuous as vol
-from urllib.parse import urlparse
-from url_normalize import url_normalize
+from yarl import URL
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_HOST, CONF_API_KEY
+from homeassistant.const import (
+    CONF_API_KEY,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_SSL,
+    CONF_URL,
+    CONF_VERIFY_SSL,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
-from .const import DOMAIN
-from .hub import ImmichHub
+from .const import DEFAULT_VERIFY_SSL, DOMAIN
+
+
+class InvalidUrl(HomeAssistantError):
+    """Error to indicate invalid URL."""
+
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO adjust the data schema to the data that you need
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_API_KEY): str,
+        vol.Required(CONF_URL): TextSelector(
+            config=TextSelectorConfig(type=TextSelectorType.URL)
+        ),
+        vol.Required(CONF_API_KEY): TextSelector(
+            config=TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
+        vol.Required(CONF_VERIFY_SSL, default=DEFAULT_VERIFY_SSL): bool,
     }
 )
 
 
-class ImmichIntegrationConfig:
-    """Placeholder class to make tests pass.
-
-    TODO Remove this placeholder class and replace with things from your PyPI package.
-    """
-
-    def __init__(self, host: str) -> None:
-        """Initialize."""
-        self.host = host
-
-    async def authenticate(self, username: str, password: str) -> bool:
-        """Test if we can authenticate with the host."""
-        return True
+def _parse_url(url: str) -> tuple[str, int, bool]:
+    """Parse the URL and return host, port, and ssl."""
+    parsed_url = URL(url)
+    if (
+        (host := parsed_url.host) is None
+        or (port := parsed_url.port) is None
+        or (scheme := parsed_url.scheme) is None
+    ):
+        raise InvalidUrl
+    return host, port, scheme == "https"
 
 
-async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-
-    url = url_normalize(data[CONF_HOST])
-    api_key = data[CONF_API_KEY]
-
-    hub = ImmichHub(host=url, api_key=api_key)
-
-    if not await hub.authenticate():
-        raise InvalidAuth
-
-    user_info = await hub.get_my_user_info()
-    username = user_info["name"]
-    clean_hostname = urlparse(url).hostname
-
-    # Return info that you want to store in the config entry.
-    return {
-        "title": f"{username} @ {clean_hostname}",
-        "data": {CONF_HOST: url, CONF_API_KEY: api_key},
-    }
+async def check_user_info(
+    hass: HomeAssistant, host: str, port: int, ssl: bool, verify_ssl: bool, api_key: str
+) -> ImmichUser:
+    """Test connection and fetch own user info."""
+    session = async_get_clientsession(hass, verify_ssl)
+    immich = Immich(session, api_key, host, port, ssl)
+    return await immich.users.async_get_my_user()
 
 
 class ImmichConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Immich Integration."""
+    """Handle a config flow for Immich."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+
+    _name: str
+    _current_data: Mapping[str, Any]
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -82,25 +89,86 @@ class ImmichConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                info = await validate_input(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+                (host, port, ssl) = _parse_url(user_input[CONF_URL])
+            except InvalidUrl:
+                errors[CONF_URL] = "invalid_url"
             else:
-                return self.async_create_entry(title=info["title"], data=user_input)
+                try:
+                    my_user_info = await check_user_info(
+                        self.hass,
+                        host,
+                        port,
+                        ssl,
+                        user_input[CONF_VERIFY_SSL],
+                        user_input[CONF_API_KEY],
+                    )
+                except ImmichUnauthorizedError:
+                    errors["base"] = "invalid_auth"
+                except CONNECT_ERRORS:
+                    errors["base"] = "cannot_connect"
+                except Exception:
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
+                else:
+                    await self.async_set_unique_id(my_user_info.user_id)
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=my_user_info.name,
+                        data={
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_SSL: ssl,
+                            CONF_VERIFY_SSL: user_input[CONF_VERIFY_SSL],
+                            CONF_API_KEY: user_input[CONF_API_KEY],
+                        },
+                    )
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Trigger a reauthentication flow."""
+        self._current_data = entry_data
+        self._name = entry_data[CONF_HOST]
 
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
+        return await self.async_step_reauth_confirm()
 
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reauthorization flow."""
+        errors = {}
 
-class InvalidAuth(HomeAssistantError):
-    """Error to indicate there is invalid auth."""
+        if user_input is not None:
+            try:
+                my_user_info = await check_user_info(
+                    self.hass,
+                    self._current_data[CONF_HOST],
+                    self._current_data[CONF_PORT],
+                    self._current_data[CONF_SSL],
+                    self._current_data[CONF_VERIFY_SSL],
+                    user_input[CONF_API_KEY],
+                )
+            except ImmichUnauthorizedError:
+                errors["base"] = "invalid_auth"
+            except CONNECT_ERRORS:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                await self.async_set_unique_id(my_user_info.user_id)
+                self._abort_if_unique_id_mismatch()
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(), data_updates=user_input
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            description_placeholders={"name": self._name},
+            errors=errors,
+        )
