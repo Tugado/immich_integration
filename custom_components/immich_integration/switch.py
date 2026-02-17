@@ -1,98 +1,101 @@
-"""Platform for Switch integration."""
+"""Platform for switch integration."""
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchDeviceClass
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_API_KEY, CONF_HOST
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from collections.abc import Callable
-from homeassistant.helpers import device_registry as dr
-from .hub import ImmichHub
-from .const import DOMAIN
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
 
-SCAN_INTERVAL = timedelta(seconds=30)
-_ID_LIST_REFRESH_INTERVAL = timedelta(hours=12)
+from .const import DOMAIN
+from .coordinator import ImmichConfigEntry, ImmichDataUpdateCoordinator
+
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    config_entry: ImmichConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Immich Switch platform."""
+    """Set up Immich switch platform."""
+    coordinator = config_entry.runtime_data
 
-    hub = hass.data[DOMAIN][config_entry.entry_id]
+    # Create switches for each job
+    entities = []
+    if coordinator.data.jobs:
+        for job_id, job_data in coordinator.data.jobs.items():
+            entities.append(ImmichJobSwitch(coordinator, job_id, job_data))
 
-    # Create entity for random favorite image
-    # async_add_entities([ImmichJobs(hass, hub)])
-
-    # Create entities for random image from each watched
-    jobs = await hub.get_jobs(False)
-    async_add_entities(
-        [ImmichSwitch(hass, hub, job=jobs[key], job_name=key) for key in jobs]
-    )
-    config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
+    async_add_entities(entities)
 
 
-async def update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
-    """Handle options updates."""
-    await hass.config_entries.async_reload(config_entry.entry_id)
-
-
-class ImmichSwitch(SwitchEntity):
-    """Represent a switch ."""
+class ImmichJobSwitch(SwitchEntity):
+    """Represent an Immich job control switch."""
 
     _attr_has_entity_name = True
-    _attr_should_poll = True
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_should_poll = False
 
     def __init__(
-        self, hass: HomeAssistant, hub: ImmichHub, job: dict, job_name: str
+        self,
+        coordinator: ImmichDataUpdateCoordinator,
+        job_id: str,
+        job_data: dict[str, Any],
     ) -> None:
-        """Initialize the binary sensor entity."""
-        super().__init__()
-        self.hub = hub
-        self.hass = hass
-        self.entity_description = f"Switch {job_name}"
-        self.job_name=job_name
-        self._attr_device_class = SwitchDeviceClass.SWITCH
-        self.paused=job["queueStatus"]["isPaused"]
-        self._attr_extra_state_attributes = {}
+        """Initialize the switch."""
+        self.coordinator = coordinator
+        self._job_id = job_id
+        self._job_data = job_data
+        self._attr_unique_id = f"immich_job_{job_id}"
+        self._attr_translation_key = "job_switch"
+        self._attr_translation_placeholders = {"job_name": job_id.replace("_", " ").title()}
 
-        self._attr_device_info = dr.DeviceInfo(
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information."""
+        return DeviceInfo(
             identifiers={(DOMAIN, "immich_integration")},
+            name="Immich Jobs",
             manufacturer="Immich",
-            entry_type=dr.DeviceEntryType.SERVICE,
+            model="Jobs Manager",
         )
 
     @property
-    def is_on(self) -> bool | None:
-        """Return true if light is on."""
-        return self.paused
+    def name(self) -> str:
+        """Return the name of the switch."""
+        return self._job_id.replace("_", " ").title()
 
     @property
-    def name(self) -> str:
-        """Return the display name of this light."""
-        return self._name
+    def is_on(self) -> bool:
+        """Return True if job is paused (switch is ON = paused)."""
+        if self._job_id in self.coordinator.data.jobs:
+            job = self.coordinator.data.jobs[self._job_id]
+            return job.get("queueStatus", {}).get("isPaused", False)
+        return False
 
-    def turn_on(self) -> None:
-        """Instruct the light to turn on.
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self.coordinator.last_update_success
 
-        You can skip the brightness part if your light does not support
-        brightness control.
-        """
-        bool ok = await self.hub.start(job_id=self.job_name)
-        self.paused=False if ok else True
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Pause the job (turn on)."""
+        await self.coordinator.async_pause_job(self._job_id)
+        self.async_write_ha_state()
 
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Resume the job (turn off)."""
+        await self.coordinator.async_resume_job(self._job_id)
+        self.async_write_ha_state()
 
-    def turn_off(self) -> None:
-        """Instruct the light to turn off."""
-        bool ok = await self.hub.pause(job_id=self.job_name)
-        self.paused=True if ok else False
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
 

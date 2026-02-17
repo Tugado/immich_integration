@@ -1,18 +1,14 @@
 {
-  "domain": "immich_integration",
-  "name": "Immich Integration",
-  "codeowners": [
-    "@mib1185","@Tugado"
-  ],
+  "domain": "immich",
+  "name": "Immich",
+  "codeowners": ["@mib1185","@Tugado"],
   "config_flow": true,
-  "dependencies": [],
-  "documentation": "https://github.com/Tugado/immich_integration",
-  "homekit": {},
-  "ssdp": [],
-  "zeroconf": [],
-  "version": "0.0.2",
+  "dependencies": ["http"],
+  "documentation": "https://www.home-assistant.io/integrations/immich",
+  "integration_type": "service",
   "iot_class": "local_polling",
   "loggers": ["aioimmich"],
-  "quality_scale": "silver",
-  "requirements": ["aioimmich==0.10.2"]
+  "quality_scale": "platinum",
+  "requirements": ["aioimmich==0.12.0"],
+  "version": "0.1.0"
 }

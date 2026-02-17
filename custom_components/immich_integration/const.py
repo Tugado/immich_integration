@@ -1,7 +1,6 @@
-"""Constants for the Immich Integration."""
+"""Constants for the Immich integration."""
 
-DOMAIN = "immich_integration"
-
+DOMAIN = "immich"
 
 DEFAULT_PORT = 2283
 DEFAULT_USE_SSL = False
